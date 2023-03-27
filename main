@@ -1,0 +1,59 @@
+import os
+from web3 import Web3
+from zksync import ZkSyncProvider, ZkSyncWallet, ZkSyncSigner, EthereumSignerWeb3
+from zksync.types import ChangePubKeyCREATE2, Transfer
+
+# Set up Ethereum connection
+INFURA_PROJECT_ID = "your_infura_project_id"
+L1_PROVIDER_URL = f"https://mainnet.infura.io/v3/{INFURA_PROJECT_ID}"
+L2_PROVIDER_URL = "https://api.zksync.io/jsrpc"
+
+# Replace with your private key and token information
+PRIVATE_KEY = "your_private_key"
+TOKEN = "ETH"  # You can replace it with other tokens supported by zkSync
+AMOUNT_TO_TRANSFER = 0.1  # In ETH
+
+# Initialize providers and signer
+web3 = Web3(Web3.HTTPProvider(L1_PROVIDER_URL))
+zk_provider = ZkSyncProvider(L2_PROVIDER_URL)
+eth_signer = EthereumSignerWeb3(web3, PRIVATE_KEY)
+zk_signer = ZkSyncSigner.from_private_key(PRIVATE_KEY)
+
+# Initialize wallets
+account_address = eth_signer.address()
+eth_wallet = web3.eth.account.privateKeyToAccount(PRIVATE_KEY)
+zk_wallet = ZkSyncWallet(eth_signer, zk_signer, zk_provider)
+
+# Deposit assets to Layer 2
+print(f"Depositing {TOKEN} to zkSync...")
+deposit_amount = Web3.toWei(AMOUNT_TO_TRANSFER, "ether")
+deposit_tx_hash = zk_wallet.deposit_to(
+    amount=deposit_amount,
+    token=TOKEN,
+    to=account_address,
+    fee=None,
+    nonce=None,
+    fast_processing=False
+)
+print(f"Deposit transaction hash: {deposit_tx_hash}")
+
+# Wait for the deposit confirmation
+print("Waiting for deposit confirmation...")
+zk_provider.wait_for_deposit_commitment(deposit_tx_hash)
+
+# Set the signing key for the zkSync wallet (if not already set)
+print("Setting the signing key for the zkSync wallet...")
+change_pubkey_tx = zk_wallet.set_signing_key(
+    fee_token=TOKEN,
+    fee=None,
+    nonce=None,
+    onchain_auth=False,
+    time_range=None,
+    valid_from=None,
+    valid_until=None,
+    eth_auth_data=None
+)
+zk_provider.wait_for_tx_receipt(change_pubkey_tx.tx_hash)
+print("Signing key is set.")
+
+# Use Layer 2 functionality, e.g., transfer funds, swap tokens, etc.
